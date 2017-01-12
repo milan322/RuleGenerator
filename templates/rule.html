@@ -1,0 +1,186 @@
+<html>
+<head>
+<title>Rule Creator</title>
+<link rel="stylesheet" type="text/css" href="/static/css/default.css">
+</head>
+<body>
+<script src="/static/js/jquery-2.1.1.min.js"></script>
+<!--<script src="/static/js/jquery.min.js"></script>-->
+<script src="/static/js/common.js"></script>
+
+<div id="rule_div">
+    <h3>Generate rule</h3>
+    <form id="ruleform" name="ruleform" action="">
+            <br><p>
+            <input id="rule_id" type="text" style="display:none" name="rule_id"
+                    value=""/>
+        <table>
+        <tr><td>
+            Available Rules: <select id="avlrules" name="avlrules">
+                <option id="-1"></option>
+            </select>
+        </td></tr>
+        <tr>
+            <td>Rule name:</td>
+            <td><input type="text" id="rule_name" name="rule_name"/></td>
+        </tr>
+        <tr>
+            <td>Word:</td>
+            <td><input type="text" id="word" name="word"/></td>
+        </tr>
+        <tr>
+            <td>Description:</td>
+            <td>
+            <textarea rows="2" cols="40" id="rule_desc" name="rule_desc"></textarea>
+            </td>
+        </tr>
+        </table>
+        <input type="button" id="saverule"  value="Save" >
+    </form>
+</div>
+
+<div id="controls">
+    <table>
+        <tr>
+            <td>Filter Rules: <input type="text" id="filter_rules"  onBlur="javascript:getrules();" > </td>
+            <td><input type="button" id="delrules" value="delete" > </td>
+        </tr>
+    </table>
+</div>
+
+<div id="rules_table" class="table_area"></div>
+
+<script type="text/JavaScript">
+
+function getrules() {
+    console.log("getting all rules");
+    $("#ruleform").trigger('reset');
+    //document.getElementById("myform").reset(); //
+    $('#avlrules').empty();
+    $('#avlrules').append('<option id='+"-1"+'>'+""+'</option>');
+    var $select = $('#rules_table');
+    $select.empty();
+    var pattern = $('#filter_rules').val();
+    var rule_json=[];
+    $.getJSON('/ruleslist?pattern='+pattern,function(data) {
+        //console.log("Data:",data);
+        rule_json = data["rules"];
+        $select.append('<table class="wltabclass" id="rulestbl">'+
+                        '</table>');
+        var table= $select.children();
+        table.empty();
+        table.append('<tr>'+
+                '<th>Select</th>'+
+                '<th>Rule Name</th>'+
+                '<th>Word</th>'+
+                '<th>Description</th>'+
+                '</tr>');
+        $.each(data, function(key,rulesarr ) {
+            //console.log("Rules:",rulesarr);
+            $.each(rulesarr, function(dictindex, ruledict) {
+                //console.log("Rules Dict=",dictindex,":",ruledict['name']);
+                $('#avlrules').append('<option id=' + dictindex +'>'+ruledict.name+'</option>');
+                var ruleinfo = '<tr>'+
+                '<td>' +'<input type="checkbox" value=\"' +
+                    ruledict["name"] + '\"/>'+ '</td>'+
+                '<td style="display:none"><p id="'+dictindex+'" >'+ '<p></td>'+
+                '<td>' + ruledict["name"] + '</td>'+
+                '<td>' + ruledict["word"] + '</td>'+
+                '<td>' + ruledict["desc"]+ '</td>'+
+                '</tr>'
+                table.append(ruleinfo);
+
+            });
+        });
+
+    });
+    
+    $('#avlrules').on('change', function(e) {
+        var fid = $(this).children(":selected").attr("id");
+        document.getElementById('rule_id').value = fid;
+        $('#rule_name').val($(this).val());
+        $('#word').val("");
+        $('#rule_desc').val("");
+        var selval = $(this).val();
+        $.each(rule_json,function(key,val) {
+            //console.log("onchange val=",val);
+            if (val.name==selval) {
+                $('#word').val(val.word);
+                $('#rule_desc').val(val.desc);
+            }
+            else return;
+                
+        });
+    });
+}
+
+function get_selrules(table) {
+    var selrules=[];
+    $('#'+table).find('input[type="checkbox"]:checked').each(function() {
+        var rule = $(this).val();
+        //selrules.push(rule);
+        var row = $(this).parent().parent();
+        var rowcells = row.find('td');
+        rowcells.each(function(id, elem) {
+            if( id == 0)
+                return;
+            if (elem.childElementCount > 0) {
+                var content = elem.children[0];
+                var key = content.id.toString();
+                //console.log("KEY=",key);
+                selrules.push({"id":key,"rulename":rule});
+            }
+        });
+
+
+    });
+    return {"rules":selrules};
+}
+
+</script>
+
+<script  type="text/JavaScript">
+$(document).ready(function () {
+    $(window).load(function() {
+       getrules(); 
+    });
+
+    $('#saverule').click(function() {
+        var rule_id = $('#avlrules').children(":selected").attr("id");
+        $('#rule_id').val(rule_id); 
+
+        var rule_parms = get_formparms("ruleform");
+        console.log(rule_parms);
+        $.getJSON('/saverule?' + serialize(rule_parms),
+                 function(data){
+            //console.log(data);
+            getrules();
+        });
+
+    });
+    
+    $('#delrules').click(function() {
+        var rules = get_selrules("rulestbl");
+        console.log("all rules=",rules);
+        var rules_json = JSON.stringify(rules);
+        $.ajax({
+            type:'POST',
+            contentType:'application/json',
+            data:rules_json,
+            dataType:'json',
+            url:'/delrules',
+            success:function(ret){
+                console.log("Deleted rule sucessfully!");  
+                getrules(); 
+            }
+        });
+
+    });
+
+});
+
+</script>
+
+</body>
+
+</html>
